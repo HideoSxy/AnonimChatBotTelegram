@@ -4,6 +4,7 @@ from aiogram.fsm.storage.redis import RedisStorage, Redis
 import logging
 from environs import Env
 from handlers.user_handler import USER
+from handlers.in_room_handler import INROOM
 
 
 async def main():
@@ -27,6 +28,7 @@ async def main():
     logging.info('Connecting to the routers..')
 
     dp.include_router(USER)
+    dp.include_router(INROOM)
 
 
     await dp.start_polling(bot)
