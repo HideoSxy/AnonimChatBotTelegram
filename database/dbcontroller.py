@@ -68,6 +68,14 @@ class UsersTools:
             cur.execute('UPDATE rooms SET available = available + 1 WHERE id =?', (room_id,))
             conn.commit()
 
+    @staticmethod
+    def isnicknamed(telegram_id: int) -> bool:
+        with sqlite3.connect(PATH) as conn:
+            cur = conn.cursor()
+            cur.execute('SELECT nickname FROM users WHERE telegram_id =?', (telegram_id,))
+            return cur.fetchone() is not None
+
+
 class RoomsTools:
     @staticmethod
     def delete_room(room: int) -> None:
@@ -80,9 +88,11 @@ class RoomsTools:
     def set_room(name: str, capacity: int) -> int:
         with sqlite3.connect(PATH) as conn:
             cur = conn.cursor()
-            cur.execute('INSERT OR REPLACE INTO rooms (name, capacity, available) VALUES (?, ?, ?)', (name, capacity, capacity))
+            cur.execute('INSERT OR REPLACE INTO rooms (name, capacity, available) VALUES (?, ?, ?)',
+                        (name, capacity, capacity))
             conn.commit()
-            cur.execute('SELECT * FROM rooms WHERE name =? AND capacity =? AND available =?', (name, capacity, capacity))
+            cur.execute('SELECT * FROM rooms WHERE name =? AND capacity =? AND available =?',
+                        (name, capacity, capacity))
             return cur.fetchone()[0]
 
     @staticmethod
@@ -106,5 +116,3 @@ class RoomsTools:
             cur = conn.cursor()
             cur.execute('DELETE FROM rooms WHERE available = 0')
             conn.commit()
-
-

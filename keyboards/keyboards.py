@@ -17,9 +17,11 @@ async def room_commands(bot: Bot, chat_id: int) -> None:
         BotCommand(command='/exit', description='Покинуть комнату')
     ], scope=scope)
 
+
 class StaticKeyboards:
     MENU_KEYBOARDS: ClassVar[InlineKeyboardMarkup] = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='Выбрать никнейм', callback_data='NICK'), InlineKeyboardButton(text='Создать комнату', callback_data='CRTROOM')],
+        [InlineKeyboardButton(text='Выбрать никнейм', callback_data='NICK'),
+         InlineKeyboardButton(text='Создать комнату', callback_data='CRTROOM')],
         [InlineKeyboardButton(text='Выбрать комнату', callback_data='CHROOM')]
     ])
 
@@ -39,6 +41,7 @@ class DynamicKeyboards:
             )
         kb.adjust(1)
         kb.row(InlineKeyboardButton(text='<', callback_data='PREV'),
-               InlineKeyboardButton(text=f'{page + 1}/{amount}', callback_data='STAT'),
+               InlineKeyboardButton(text=f'{page}/{amount}', callback_data='STAT'),
                InlineKeyboardButton(text='>', callback_data='NEXT'))
+        kb.row(InlineKeyboardButton(text='Отмена', callback_data='CANCEL'))
         return kb.as_markup()

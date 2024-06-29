@@ -1,13 +1,14 @@
 from aiogram import Router, F
-from aiogram.filters import Command, CommandStart, StateFilter
+from aiogram.filters import Command, CommandStart, StateFilter, BaseFilter
 from aiogram.types import Message, CallbackQuery
 from lexicon.ru_ru import *
 from keyboards.keyboards import *
-from aiogram.fsm.state import State, StatesGroup, default_state
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
 from database.dbcontroller import UsersTools, RoomsTools
 from middlewares.outroom_filter_middleware import OutroomFilter
+from pprint import pprint
 
 USER = Router()
 
@@ -22,6 +23,11 @@ class UserFSM(StatesGroup):
     DEFAULT: ClassVar[State] = State()
 
 
+class IsNotNickNamed(BaseFilter):
+    async def __call__(self, update: Message | CallbackQuery) -> bool:
+        return not UsersTools.isnicknamed(update.from_user.id)
+
+
 @USER.message(CommandStart())
 async def start(message: Message, state: FSMContext):
     await message.answer(START, reply_markup=StaticKeyboards.MENU_KEYBOARDS)
@@ -29,11 +35,21 @@ async def start(message: Message, state: FSMContext):
     await menu_commands(message.bot, message.from_user.id)
 
 
+@USER.callback_query(IsNotNickNamed(), F.data != 'NICK')
+async def unset_callback_nickname_lock(callback: CallbackQuery):
+    await callback.answer()
+    await callback.message.answer(UNSET_NICKNAME_LOCK)
+
+
+@USER.message(IsNotNickNamed(), Command(commands=['menu']))
+async def unset_message_nickname_lock(message: Message):
+    await message.answer(UNSET_NICKNAME_LOCK)
+
+
 @USER.message(Command(commands=['menu']))
 async def menu(message: Message, state: FSMContext):
     await message.answer(MENU, reply_markup=StaticKeyboards.MENU_KEYBOARDS)
     await state.set_state(UserFSM.DEFAULT)
-    RoomsTools.delete_deadrooms()
 
 
 @USER.callback_query(F.data == 'CANCEL')
@@ -45,7 +61,8 @@ async def callback_menu(callback: CallbackQuery, state: FSMContext):
 @USER.callback_query(F.data == 'NICK')
 async def nickname_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    mes = await callback.message.edit_text(SET_NICK_TUTORIAL, reply_markup=StaticKeyboards.CANCEL)
+    await callback.message.delete()
+    mes = await callback.message.answer(SET_NICK_TUTORIAL, reply_markup=StaticKeyboards.CANCEL)
     await state.set_state(UserFSM.GETTING_NICKNAME)
     await state.update_data(del_mes=mes.message_id)
 
@@ -58,8 +75,6 @@ async def set_nick(message: Message, state: FSMContext):
     try:
         id_ = (await state.get_data())['del_mes']
         await message.chat.delete_message(id_)
-    except TelegramBadRequest: # todo убрать дебагерские эксепты
-        ...
     finally:
         await message.answer(NICKNAME_SET % (message.text,))
     UsersTools.set_nickname(message.from_user.id, message.text)
@@ -83,8 +98,6 @@ async def enter_room_name(message: Message, state: FSMContext):
     try:
         id_ = (await state.get_data())['del_mes']
         await message.chat.delete_message(id_)
-    except TelegramBadRequest: # todo убрать дебагерские эксепты
-        ...
     finally:
         msg = await message.answer(SET_ROOM_CAPACITY_TUTORIAL, reply_markup=StaticKeyboards.CANCEL)
     await state.update_data(room_name=message.text, del_mes=msg.message_id)
@@ -100,8 +113,6 @@ async def enter_room_capacity(message: Message, state: FSMContext):
     try:
         id_ = (await state.get_data())['del_mes']
         await message.chat.delete_message(id_)
-    except TelegramBadRequest: # todo убрать дебагерские эксепты
-        ...
     finally:
         await message.answer(ROOM_SET % (room_name, message.text))
     UsersTools.choose_room(message.from_user.id, RoomsTools.set_room(room_name, int(message.text)))
@@ -113,7 +124,7 @@ async def choose_room(callback: CallbackQuery, state: FSMContext):
     rooms = RoomsTools.get_rooms()
     await callback.answer()
     await callback.message.delete()
-    await callback.message.answer(CHOOSE_ROOM_TUTORIAL, reply_markup=DynamicKeyboards.choose_rooms(rooms[0], 0, len(rooms)))
+    await callback.message.answer(CHOOSE_ROOM_TUTORIAL, reply_markup=DynamicKeyboards.choose_rooms(rooms[0], 1, len(rooms)))
     await state.update_data(rooms=rooms, page=0, amount=len(rooms))
 
 
@@ -135,7 +146,7 @@ async def next_page(callback: CallbackQuery, state: FSMContext):
     if not(0 <= page + 1 <= amount - 1):
         await callback.answer("Максимальная страница", show_alert=True)
         return None
-    await callback.message.edit_text(CHOOSE_ROOM_TUTORIAL, reply_markup=DynamicKeyboards.choose_rooms(rooms[page + 1], page=page + 1, amount=amount))
+    await callback.message.edit_text(CHOOSE_ROOM_TUTORIAL, reply_markup=DynamicKeyboards.choose_rooms(rooms[page + 1], page=page + 2, amount=amount))
     await state.update_data(page=page + 1)
     await callback.answer()
 
@@ -148,10 +159,9 @@ async def previous_page(callback: CallbackQuery, state: FSMContext):
     if not(0 <= page - 1 <= amount - 1):
         await callback.answer("Минимальная страница", show_alert=True)
         return None
-    await callback.message.edit_text(CHOOSE_ROOM_TUTORIAL, reply_markup=DynamicKeyboards.choose_rooms(rooms[page + 1], page=page + 1, amount=amount))
+    await callback.message.edit_text(CHOOSE_ROOM_TUTORIAL, reply_markup=DynamicKeyboards.choose_rooms(rooms[page - 1], page=page, amount=amount))
     await state.update_data(page=page - 1)
     await callback.answer()
-
 
 
 
